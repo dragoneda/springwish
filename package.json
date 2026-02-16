@@ -1,0 +1,25 @@
+{
+  "name": "springwish",
+  "version": "1.0.0",
+  "description": "自动化生成拜年微信程序",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js",
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dragoneda/springwish.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dragoneda/springwish/issues"
+  },
+  "homepage": "https://github.com/dragoneda/springwish#readme",
+  "dependencies": {
+    "sqlite3": "^5.1.7"
+  }
+}
