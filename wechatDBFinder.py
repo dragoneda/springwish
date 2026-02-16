@@ -96,7 +96,7 @@ class WeChatDBFinder:
             return False
 
     def extract_contacts(self, db_path):
-        """从微信数据库中提取联系人信息"""
+        """从微信数据库中提取联系人信息（针对微信电脑版 MSG.db 优化）"""
         print(f"正在从数据库中提取联系人信息: {db_path}")
 
         try:
@@ -104,23 +104,23 @@ class WeChatDBFinder:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
 
-            # 查找联系人表
+            # 查找联系人表（微信电脑版通常使用 rcontact 表）
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
             contact_table = None
             for row in cursor.fetchall():
                 table_name = row[0]
-                if 'rcontact' in table_name.lower() or 'contact' in table_name.lower() or 'user' in table_name.lower():
+                if 'rcontact' in table_name.lower():
                     contact_table = table_name
                     break
 
             if not contact_table:
-                print("未找到联系人表")
+                print("未找到 rcontact 表")
                 conn.close()
                 return None
 
             print(f"联系人表: {contact_table}")
 
-            # 读取联系人信息
+            # 读取联系人表字段
             cursor.execute(f"PRAGMA table_info({contact_table})")
             columns = [column[1] for column in cursor.fetchall()]
 
@@ -128,39 +128,59 @@ class WeChatDBFinder:
             for i, column in enumerate(columns, 1):
                 print(f"{i}. {column}")
 
-            # 尝试查询所有联系人数据
+            # 查询所有联系人记录
             cursor.execute(f"SELECT * FROM {contact_table}")
             contacts = cursor.fetchall()
             print(f"\n查询到 {len(contacts)} 位联系人:")
+
+            extracted_contacts = []
+
             for i, contact in enumerate(contacts, 1):
-                contact_info = ""
-                # 根据常见的微信数据库字段结构提取姓名和备注
-                if len(columns) > 0:
-                    # 查找姓名字段
-                    name_idx = -1
-                    notes_idx = -1
-                    for j, col in enumerate(columns):
-                        col_lower = col.lower()
-                        if 'nick' in col_lower or 'name' in col_lower:
-                            name_idx = j
-                        elif 'remark' in col_lower or 'notes' in col_lower:
-                            notes_idx = j
+                # 分析微信电脑版 rcontact 表字段
+                name = ""
+                alias = ""
+                remark = ""
 
-                    name = str(contact[name_idx]) if name_idx != -1 and name_idx < len(contact) else str(contact[1]) if len(contact) > 1 else "未知"
-                    notes = str(contact[notes_idx]) if notes_idx != -1 and notes_idx < len(contact) else ""
+                try:
+                    # 根据微信电脑版数据库字段结构提取信息
+                    if "NickName" in columns:
+                        name_idx = columns.index("NickName")
+                        if name_idx < len(contact):
+                            name = str(contact[name_idx])
+                    if "Alias" in columns:
+                        alias_idx = columns.index("Alias")
+                        if alias_idx < len(contact):
+                            alias = str(contact[alias_idx])
+                    if "Remark" in columns:
+                        remark_idx = columns.index("Remark")
+                        if remark_idx < len(contact):
+                            remark = str(contact[remark_idx])
 
-                    contact_info = f"{i}. {name}"
-                    if notes and notes != name:
-                        contact_info += f" ({notes})"
+                    # 确定显示名称
+                    display_name = remark if remark else name if name else alias if alias else "未知"
 
-                print(contact_info)
+                    # 输出信息
+                    contact_info = f"{i}. {display_name}"
+                    if (name or alias) and remark and name != remark and alias != remark:
+                        contact_info += f" ({name or alias})"
+
+                    print(contact_info)
+
+                    extracted_contacts.append({
+                        "nickname": name,
+                        "alias": alias,
+                        "remark": remark,
+                        "display_name": display_name
+                    })
+                except Exception as e:
+                    print(f"分析联系人 {i} 时出错: {e}")
 
             conn.close()
 
             return {
                 'table_name': contact_table,
                 'columns': columns,
-                'contacts': contacts
+                'contacts': extracted_contacts
             }
 
         except Exception as e:

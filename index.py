@@ -34,26 +34,18 @@ def main():
                     # 打印所有联系人信息
                     print("\n=== 微信联系人列表 ===")
                     for i, contact in enumerate(contacts_data['contacts']):
-                        contact_info = ""
-                        if len(contacts_data['columns']) > 0:
-                            # 查找姓名字段
-                            name_idx = -1
-                            notes_idx = -1
-                            for j, col in enumerate(contacts_data['columns']):
-                                col_lower = col.lower()
-                                if 'nick' in col_lower or 'name' in col_lower:
-                                    name_idx = j
-                                elif 'remark' in col_lower or 'notes' in col_lower:
-                                    notes_idx = j
-
-                            name = str(contact[name_idx]) if name_idx != -1 and name_idx < len(contact) else str(contact[1]) if len(contact) > 1 else "未知"
-                            notes = str(contact[notes_idx]) if notes_idx != -1 and notes_idx < len(contact) else ""
+                        if isinstance(contact, dict):
+                            name = contact.get("display_name", "未知")
+                            notes = ""
+                            if contact.get("nickname") and contact.get("nickname") != name:
+                                notes = contact.get("nickname")
+                            elif contact.get("remark") and contact.get("remark") != name:
+                                notes = contact.get("remark")
 
                             contact_info = f"{i+1}. {name}"
-                            if notes and notes != name:
+                            if notes:
                                 contact_info += f" ({notes})"
-
-                        print(contact_info)
+                            print(contact_info)
                     # 将联系人信息导入到本地数据库
                     import_contacts_from_wechat(contacts_data['contacts'])
             else:
@@ -178,7 +170,7 @@ def add_chat(ui, chat_manager):
     ui.show_success('聊天记录已添加')
 
 def import_contacts_from_wechat(wechat_contacts):
-    """从微信数据库导入联系人到本地数据库"""
+    """从微信数据库导入联系人到本地数据库（针对微信电脑版优化）"""
     if not wechat_contacts:
         return
 
@@ -187,16 +179,16 @@ def import_contacts_from_wechat(wechat_contacts):
 
     added_count = 0
     for contact in wechat_contacts:
-        # 提取联系人姓名和备注
-        name = ''
-        notes = ''
         try:
-            # 这取决于微信数据库的字段结构，这里只是示例
-            # 实际需要根据微信数据库的字段进行调整
-            if len(contact) > 1:
-                name = str(contact[1])
-            if len(contact) > 2:
-                notes = str(contact[2])
+            # 提取姓名和备注（微信电脑版字段结构）
+            if isinstance(contact, dict) and "display_name" in contact:
+                name = contact.get("display_name", "")
+                notes = contact.get("nickname", "")
+                if contact.get("remark") and contact.get("remark") != contact.get("nickname"):
+                    notes = contact.get("remark")
+            else:
+                name = ""
+                notes = ""
 
             if name:
                 cursor.execute('SELECT id FROM contacts WHERE name = ?', (name,))
@@ -209,7 +201,7 @@ def import_contacts_from_wechat(wechat_contacts):
                                   (name, '', relation, notes))
                     added_count += 1
         except Exception as e:
-            print(f"导入联系人 '{name}' 时出错: {e}")
+            print(f"导入联系人时出错: {e}")
 
     conn.commit()
     conn.close()
