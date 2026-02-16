@@ -1,3 +1,4 @@
-node_modules/
-data/*.db
+*.pyc
+__pycache__/
+*.db
 *.log
