@@ -8,6 +8,7 @@ from chat_manager import ChatManager
 from greeting_generator import GreetingGenerator
 from user_interaction import UserInteraction
 from database import get_db_connection
+from wechatDBFinder import WeChatDBFinder
 
 def main():
     ui = UserInteraction()
@@ -16,6 +17,27 @@ def main():
 
     try:
         ui.show_info('正在初始化拜年微信生成程序...')
+
+        # 首先查找微信数据库
+        finder = WeChatDBFinder()
+        contact_db_paths = finder.find_contacts_db()
+        if contact_db_paths:
+            ui.show_success(f"找到 {len(contact_db_paths)} 个微信数据库文件")
+            # 可以选择一个数据库进行读取
+            db_path = contact_db_paths[0]
+            if finder.verify_db(db_path):
+                ui.show_success("数据库验证成功")
+                # 尝试提取联系人信息
+                contacts_data = finder.extract_contacts(db_path)
+                if contacts_data:
+                    ui.show_success(f"成功提取 {len(contacts_data['contacts'])} 位联系人信息")
+                    # 将联系人信息导入到本地数据库
+                    import_contacts_from_wechat(contacts_data['contacts'])
+            else:
+                ui.show_error("数据库验证失败")
+        else:
+            ui.show_info("未找到微信数据库，使用本地数据库")
+
         init_database()
 
         menu_options = [
@@ -131,6 +153,46 @@ def add_chat(ui, chat_manager):
 
     chat_manager.save_chat(contact['id'], content)
     ui.show_success('聊天记录已添加')
+
+def import_contacts_from_wechat(wechat_contacts):
+    """从微信数据库导入联系人到本地数据库"""
+    if not wechat_contacts:
+        return
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    added_count = 0
+    for contact in wechat_contacts:
+        # 提取联系人姓名和备注
+        name = ''
+        notes = ''
+        try:
+            # 这取决于微信数据库的字段结构，这里只是示例
+            # 实际需要根据微信数据库的字段进行调整
+            if len(contact) > 1:
+                name = str(contact[1])
+            if len(contact) > 2:
+                notes = str(contact[2])
+
+            if name:
+                cursor.execute('SELECT id FROM contacts WHERE name = ?', (name,))
+                existing_contact = cursor.fetchone()
+                if not existing_contact:
+                    # 自动判断关系
+                    import_cont = {'name': name, 'notes': notes}
+                    relation = determine_relation(import_cont)
+                    cursor.execute('INSERT INTO contacts (name, phone, relation, notes) VALUES (?, ?, ?, ?)',
+                                  (name, '', relation, notes))
+                    added_count += 1
+        except Exception as e:
+            print(f"导入联系人 '{name}' 时出错: {e}")
+
+    conn.commit()
+    conn.close()
+
+    if added_count > 0:
+        print(f"成功导入 {added_count} 位联系人到本地数据库")
 
 def generate_greeting(ui, chat_manager, generator):
     """生成拜年微信"""
