@@ -128,12 +128,32 @@ class WeChatDBFinder:
             for i, column in enumerate(columns, 1):
                 print(f"{i}. {column}")
 
-            # 尝试查询联系人数据
-            cursor.execute(f"SELECT * FROM {contact_table} LIMIT 10")
+            # 尝试查询所有联系人数据
+            cursor.execute(f"SELECT * FROM {contact_table}")
             contacts = cursor.fetchall()
-            print(f"\n查询到 {len(contacts)} 条联系人记录:")
+            print(f"\n查询到 {len(contacts)} 位联系人:")
             for i, contact in enumerate(contacts, 1):
-                print(f"{i}. {contact}")
+                contact_info = ""
+                # 根据常见的微信数据库字段结构提取姓名和备注
+                if len(columns) > 0:
+                    # 查找姓名字段
+                    name_idx = -1
+                    notes_idx = -1
+                    for j, col in enumerate(columns):
+                        col_lower = col.lower()
+                        if 'nick' in col_lower or 'name' in col_lower:
+                            name_idx = j
+                        elif 'remark' in col_lower or 'notes' in col_lower:
+                            notes_idx = j
+
+                    name = str(contact[name_idx]) if name_idx != -1 and name_idx < len(contact) else str(contact[1]) if len(contact) > 1 else "未知"
+                    notes = str(contact[notes_idx]) if notes_idx != -1 and notes_idx < len(contact) else ""
+
+                    contact_info = f"{i}. {name}"
+                    if notes and notes != name:
+                        contact_info += f" ({notes})"
+
+                print(contact_info)
 
             conn.close()
 

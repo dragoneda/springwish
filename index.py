@@ -31,6 +31,29 @@ def main():
                 contacts_data = finder.extract_contacts(db_path)
                 if contacts_data:
                     ui.show_success(f"成功提取 {len(contacts_data['contacts'])} 位联系人信息")
+                    # 打印所有联系人信息
+                    print("\n=== 微信联系人列表 ===")
+                    for i, contact in enumerate(contacts_data['contacts']):
+                        contact_info = ""
+                        if len(contacts_data['columns']) > 0:
+                            # 查找姓名字段
+                            name_idx = -1
+                            notes_idx = -1
+                            for j, col in enumerate(contacts_data['columns']):
+                                col_lower = col.lower()
+                                if 'nick' in col_lower or 'name' in col_lower:
+                                    name_idx = j
+                                elif 'remark' in col_lower or 'notes' in col_lower:
+                                    notes_idx = j
+
+                            name = str(contact[name_idx]) if name_idx != -1 and name_idx < len(contact) else str(contact[1]) if len(contact) > 1 else "未知"
+                            notes = str(contact[notes_idx]) if notes_idx != -1 and notes_idx < len(contact) else ""
+
+                            contact_info = f"{i+1}. {name}"
+                            if notes and notes != name:
+                                contact_info += f" ({notes})"
+
+                        print(contact_info)
                     # 将联系人信息导入到本地数据库
                     import_contacts_from_wechat(contacts_data['contacts'])
             else:
